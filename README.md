@@ -53,7 +53,7 @@ For each dataset, the optimal hyperparameters are stored in `Params/[DATASET].ya
 The main hyparameters of CoRML are listed as follows:
  - `lambda` ($\lambda$): Weights for $\mathbf{H}$ and $\mathbf{G}$ in preference scores
  - `dual_step_length` ($\rho$): Dual step length of ADMM
- - `l2_regularization` ($\theta$): $L$2-regularization for learning weight matrix $\mathbf{H}$
+ - `l2_regularization` ($\theta$): L2-regularization for learning weight matrix $\mathbf{H}$
  - `item_degree_norm` ($t$): Item degree norm for learning weight matrix $\mathbf{H}$
  - `global_scaling` ($\epsilon$): Global scaling in approximated ranking weights (in logarithm scale)
  - `user_scaling` ($t_u$): User degree scaling in approximated ranking weights
