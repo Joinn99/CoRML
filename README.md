@@ -2,9 +2,8 @@
 [![RecBole](https://img.shields.io/badge/RecBole-1.1.1-orange)](https://recbole.io/)
 [![arXiv](https://img.shields.io/badge/arXiv-2304.07971-red)](https://arxiv.org/abs/2304.07971) 
 [![License](https://img.shields.io/github/license/Joinn99/CoRML)](https://github.com/Joinn99/CoRML/blob/torch/LICENSE.md)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Joinn99/CoRML/blob/torch/CoRML%20Demonstration.ipynb)
 
-**PyTorch version** (Default) | [**CuPy version**](https://github.com/Joinn99/CoRML/tree/cupy)
+[**PyTorch version**](https://github.com/Joinn99/CoRML/tree/torch) (Default) | **CuPy version**
 
 This is the official implementation of our *The 46th International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR 2023)* paper:
 > Tianjun Wei, Jianghong Ma, Tommy W.S. Chow. Collaborative Residual Metric Learning. [[arXiv](https://arxiv.org/abs/2304.07971)]
@@ -15,13 +14,14 @@ This is the official implementation of our *The 46th International ACM SIGIR Con
 
 
 ## Requirements
-The model implementation ensures compatibility with the Recommendation Toolbox [RecBole](https://recbole.io/) (Github: [Recbole](https://github.com/RUCAIBox/RecBole)).
+The model implementation ensures compatibility with the Recommendation Toolbox [RecBole](https://recbole.io/) (Github: [Recbole](https://github.com/RUCAIBox/RecBole)). This version employs [CuPy](https://cupy.dev/) for matrix storage and computation, and produces the results in the paper. In addition, we also offer a pure PyTorch version of CoRML model, which can be found [here](https://github.com/Joinn99/CoRML/tree/torch).  
 
 The requirements of the running environement:
 
 - Python: 3.8+
 - PyTorch: 1.9.0+
 - RecBole: 1.1.1
+- CuPy: 0.10.5+
 
 ## Dataset
 Here we only put zip files of datasets in the respository due to the storage limits. To use the dataset, run
@@ -73,9 +73,6 @@ The script `run.py` is used to reproduced the results presented in paper. Train 
 ```bash
 python run.py --dataset DATASET_NAME
 ```
-
-## Google Colab
-We also provide Colab notebook version of CoRML, you can click [here](https://colab.research.google.com/github/Joinn99/CoRML/blob/torch/CoRML%20Demonstration.ipynb) to open Google Colab, select the runtime type as *GPU*, and run the model.
 
 ## Citation
 If you wish, please cite the following paper:

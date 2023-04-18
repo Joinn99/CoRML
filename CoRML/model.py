@@ -1,5 +1,5 @@
 r"""
-CoRML (PyTorch Version)
+CoRML (CuPy Version)
 ################################################
 Author:
     Tianjun Wei (tjwei2-c@my.cityu.edu.hk)
@@ -9,7 +9,12 @@ Created Date:
     2023/04/10
 """
 import torch
+import cupy as cp
 import numpy as np
+import scipy.sparse as sp
+
+from cupy.sparse import diags
+from cupyx.scipy.sparse.linalg import lobpcg
 
 from recbole.utils import InputType
 from recbole.utils.enum_type import ModelType
@@ -20,82 +25,69 @@ class SpectralInfo(object):
     r"""A class for producing spectral information of the interaction matrix, including node degrees,
     singular vectors, and partitions produced by spectral graph partitioning.
 
-    Reference: https://github.com/Joinn99/FPSR/blob/torch/FPSR/model.py
+    Reference: https://github.com/Joinn99/FPSR/blob/cupy/FPSR/model.py
     """
     def __init__(self, inter_mat, config) -> None:
         # load parameters info
-        self.eigen_dim = config["eigenvectors"]         # Number of eigenvectors used in SVD
+        self.eigen_dim = config["eigenvectors"]             # Number of eigenvectors used in SVD
         self.t_u = config["user_scaling"]
         self.norm_di = 2 * config["item_degree_norm"]
-        self.partition_ratio = config["partition_ratio"]            # Maximum size ratio of item partition (1.0 means no partitioning)
+        self.partition_ratio = config["partition_ratio"]    # Maximum size ratio of item partition (1.0 means no partitioning)
         self.inter_mat = inter_mat
 
-    def _degree(self, inter_mat=None, dim=0, exp=-0.5) -> torch.Tensor:
-        r"""Get the degree of users and items.
-        
-        Returns:
-            Tensor of the node degrees.
+    def _degree(self, inter_mat=None, axis=0, exp=-0.5):
+        r"""
+        Degree of nodes
         """
         if inter_mat is None:
             inter_mat = self.inter_mat
-        d_inv = torch.nan_to_num(
-            torch.clip(torch.sparse.sum(inter_mat, dim=dim).to_dense(), min=1.).pow(exp), nan=1., posinf=1., neginf=1.
-        )
-        return d_inv
+        axis_sum = inter_mat.sum(axis=axis)
+        d_i = cp.power(axis_sum.clip(min=1), exp).flatten()
+        d_i[cp.isinf(d_i)] = 1.
+        return d_i
 
-    def _svd(self, mat, k) -> torch.Tensor:
-        r"""Perform Truncated singular value decomposition (SVD) on
-        the input matrix, return top-k eigenvectors.
-        
-        Returns:
-            Tok-k eigenvectors.
+    def _svd(self, mat, k):
+        r"""
+        Truncated singular value decomposition (SVD)
         """
-        _, _, V = torch.svd_lowrank(mat, q=max(4*k, 32), niter=10)
-        return V[:, :k]
+        _, V = lobpcg(
+            mat.T @ mat, cp.random.rand(mat.shape[1], k), largest=True)
+        return V
 
-    def _norm_adj(self, item_list=None) -> torch.Tensor:
-        r"""Get the normalized item-item adjacency matrix for a group of items.
-        
-        Returns:
-            Sparse tensor of the normalized item-item adjacency matrix.
+    def _norm_adj(self, ilist=None):
+        r"""
+        Normalized adjacency matrix
         """
-        if item_list is None:
-            vals = self.inter_mat.values() * self.di_isqr[self.inter_mat.indices()[1]].squeeze()
-            return torch.sparse_coo_tensor(
-                            self.inter_mat.indices(),
-                            self._degree(dim=1)[self.inter_mat.indices()[0]] * vals,
-                            size=self.inter_mat.shape, dtype=torch.float
-                        ).coalesce()
+        if ilist is None:
+            normed = diags(self._degree(axis=1)) @ self.inter_mat @ \
+                diags(self.di_isqr.flatten())
         else:
-            inter = self.inter_mat.index_select(dim=1, index=item_list).coalesce()
-            vals = inter.values() * self.di_isqr[item_list][inter.indices()[1]].squeeze()
-            return torch.sparse_coo_tensor(
-                            inter.indices(),
-                            self._degree(inter, dim=1)[inter.indices()[0]] * vals,
-                            size=inter.shape, dtype=torch.float
-            ).coalesce()
+            inter_mat = self.inter_mat[:, ilist]
+            normed = diags(self._degree(inter_mat, axis=1)) @ inter_mat @ \
+                diags(self.di_isqr.flatten()[ilist])
+        return normed
 
     def run(self):
         r"""
         Spectral information
         """
-        self.di_isqr = self._degree(dim=0).reshape(-1, 1)
-        self.di_sqr = self._degree(dim=0, exp=0.5).reshape(1, -1)
+        self.di_isqr = self._degree(axis=0).reshape(-1, 1)
+        self.di_sqr = self._degree(axis=0, exp=0.5).reshape(1, -1)
 
-        u_norm = self._degree(dim=1, exp=-self.t_u).reshape(-1, 1)
+        u_norm = self._degree(axis=1, exp=-self.t_u).reshape(-1, 1)
         self.u_norm = u_norm / u_norm.min()
 
         self.V_mat = self._svd(self._norm_adj(), self.eigen_dim)
 
         return self.di_sqr, self.u_norm, self.V_mat
 
-    def partitioning(self, V) -> torch.Tensor:
+    def _partitioning(self, V) -> torch.Tensor:
         r"""
-        Graph bipartitioning
+        Graph biparitioning
         """
-        split = V[:, 1] >= 0
+        split = cp.asnumpy(V[:, 1] >= 0)
         if split.sum() == split.shape[0] or split.sum() == 0:
-            split = V[:, 1] >= torch.median(V[:, 1])
+            split = cp.asnumpy(V[:, 1] >= cp.median(V[:, 1]))
         return split
 
     def get_partition(self, ilist, total_num):
@@ -109,9 +101,9 @@ class SpectralInfo(object):
         else:
             # If the partition size is larger than size limit,
             # perform graph partitioning on this partition.
-            split = self.partitioning(self._svd(self._norm_adj(ilist), 2))
-            return self.get_partition(ilist[torch.where(split)[0]], total_num) + \
-                self.get_partition(ilist[torch.where(~split)[0]], total_num)
+            split = self._partitioning(self._svd(self._norm_adj(ilist), 2))
+            return self.get_partition(ilist[np.where(split)], total_num) + \
+                self.get_partition(ilist[np.where(~split)], total_num)
 
 
 class CoRML(GeneralRecommender):
@@ -129,6 +121,7 @@ class CoRML(GeneralRecommender):
         Model initialization and training.
         """
         super().__init__(config, dataset)
+        cp.random.seed(config["seed"])
 
         self.lambda_ = config["lambda"]                     # Weights for H and G in preference scores
         self.rho = config["dual_step_length"]               # Dual step length of ADMM
@@ -143,12 +136,8 @@ class CoRML(GeneralRecommender):
         self.dummy_param = torch.nn.Parameter(torch.zeros(1))
 
         # User-item interaction matrix
-        self.inter_mat = dataset.inter_matrix(form='coo')
-        self.inter_mat = torch.sparse_coo_tensor(
-                            torch.LongTensor(np.array([self.inter_mat.row, self.inter_mat.col])),
-                            torch.FloatTensor(self.inter_mat.data),
-                            size=self.inter_mat.shape, dtype=torch.float
-                        ).coalesce().to(self.device)
+        self.inter_mat = cp.sparse.csc_matrix(dataset.inter_matrix(
+            form="csr"), dtype=cp.float32)   # User-item interaction matrix
 
         # TRAINING PROCESS
         item_list = self.update_G(config)
@@ -159,9 +148,9 @@ class CoRML(GeneralRecommender):
         Degree of item node
         """
         if ilist is not None:
-            return torch.pow(self.di_sqr[:, ilist], pow)
+            return cp.power(self.di_sqr[:, ilist], pow)
         else:
-            return torch.pow(self.di_sqr, pow)
+            return cp.power(self.di_sqr, pow)
 
     def update_G(self, config):
         r"""
@@ -169,8 +158,9 @@ class CoRML(GeneralRecommender):
         """
         G = SpectralInfo(self.inter_mat, config)
         self.di_sqr, self.u_norm, self.V_mat = G.run()
+
         item_list = G.get_partition(
-            torch.arange(self.n_items, device=self.device), self.n_items
+            np.arange(self.n_items), self.n_items
         )
         return item_list
 
@@ -178,87 +168,83 @@ class CoRML(GeneralRecommender):
         r"""
         Update H matrix
         """
-        self.H_indices = []
-        self.H_values = []
-
+        self.H_dict = sp.dok_matrix((self.n_items, self.n_items),
+                                    dtype=np.float32)
         for ilist in item_list:
             H_triu = self.update_H_part(ilist)
-            H_triu = torch.where(H_triu >= 5e-4, H_triu, 0).to_sparse_coo()
-            self.H_indices.append(ilist[H_triu.indices()])
-            self.H_values.append(H_triu.values())
-        
-        H_mat = torch.sparse_coo_tensor(indices=torch.cat(self.H_indices, dim=1),
-                                         values=torch.cat(self.H_values, dim=0),
-                                         size=(self.n_items, self.n_items)).coalesce()
-        del self.H_indices, self.H_values
-        
+            H_triu.data *= H_triu.data >= 5e-4         # Filter out small values
+            H_triu.eliminate_zeros()
+            self.H_dict._update(
+                dict(
+                    zip(
+                        zip(ilist[H_triu.row], ilist[H_triu.col]),
+                        H_triu.data
+                    )
+                )
+            )
+        self.H_mat = cp.sparse.csr_matrix(self.H_dict.tocsr(), dtype=cp.float32)
         # Sparse approximation
         if self.sparse_approx:
             limit = (self.n_users + self.n_items) * 64 # Embedding size in MF models
             thres = 1e-4
-            while (H_mat._nnz() + H_mat.indices().shape[-1] + self.n_items + 1) >= limit:
-                mask = torch.where(H_mat.values() > thres)[0]
-                H_mat = torch.sparse_coo_tensor(indices=H_mat.indices().index_select(-1, mask),
-                                            values=H_mat.values().index_select(-1, mask),
-                                            size=(self.n_items, self.n_items)).coalesce()
+            while (2 * self.H_mat.nnz + self.n_items) >= limit:
+                self.H_mat.data *= (self.H_mat.data > thres)
                 thres *= 1.25
-        self.H_mat = H_mat.T.to_sparse_csr()
-
-    def _inner_prod(self, A_mat: torch.Tensor, B_mat: torch.Tensor):
-        r"""
-        Small-batch inner product
-        """
-        assert A_mat.shape[-2] == B_mat.shape[-2]
-        result = torch.zeros((A_mat.shape[-1], B_mat.shape[-1]), device=self.device)
-        for chunk in torch.split(torch.arange(0, A_mat.shape[-2], device=self.device), 10000):
-            result += A_mat.index_select(dim=-2, index=chunk).to_dense().T @ \
-                      B_mat.index_select(dim=-2, index=chunk).to_dense()
-        return result
+                self.H_mat.eliminate_zeros()
 
     def update_H_part(self, ilist):
         r"""
         Learning H in each partition (if any)
         """
-        R_mat = self.inter_mat.index_select(dim=1, index=ilist) * self.DI(-self.norm_di, ilist)
+        R_mat = self.inter_mat[:, ilist] @ diags(
+            self.DI(-self.norm_di, ilist).flatten())
 
-        H_aux = (0.5 / self.lambda_) * self._inner_prod(R_mat, R_mat)
-        II_mat = self._inner_prod(R_mat, self.u_norm * R_mat)
+        H_aux = (
+            (0.5 / self.lambda_) * (R_mat.T @
+                                    R_mat).todense()
+        ).astype(cp.float32)
+
+        II_mat = (
+            R_mat.T @ (diags(self.u_norm.flatten()) @ R_mat)
+        ).todense()
         del R_mat
 
         V_mat = self.V_mat[ilist, :]
-        diag_vvt = torch.square(V_mat).sum(dim=1).view(-1)
+        diag_vvt = cp.square(V_mat).sum(axis=1).flatten()
 
-        G_mat = - self.DI(self.norm_di - 1, ilist).T * \
-            (V_mat @ V_mat.T).clip(0).fill_diagonal_(0) * self.DI(1 - self.norm_di, ilist)
+        G_mat = (
+            diags(diag_vvt) - self.DI(self.norm_di - 1, ilist).T *
+            (V_mat @ V_mat.T).clip(0) * self.DI(1 - self.norm_di, ilist)
+        ).astype(cp.float32)
         del V_mat, diag_vvt
 
         H_aux = H_aux + (
             self.eps * ((1 / self.lambda_) - 1) *
             (II_mat @ G_mat)
-        )
+        ).astype(cp.float32)
         del G_mat
 
-        II_inv = torch.inverse(
-            self.eps * II_mat + torch.diag(
-                self.DI(2, ilist).view(-1) * self.theta + self.rho
+        II_inv = cp.linalg.inv(
+            self.eps * II_mat + diags(
+                self.DI(2, ilist).flatten() * self.theta + self.rho
             )
-        )
+        ).astype(cp.float32)
         del II_mat
 
         H_aux = II_inv @ H_aux
-        Phi_mat = torch.zeros_like(H_aux, device=self.device)
-        S_mat = torch.zeros_like(H_aux, device=self.device)
+        Phi_mat = cp.zeros_like(II_inv, dtype=cp.float32)
+        S_mat = cp.zeros_like(II_inv, dtype=cp.float32)
 
         for _ in range(self.admm_iter):
-            # ADMM Iteration
+            # Iteration
             H_tilde = H_aux + II_inv @ (self.rho * (S_mat - Phi_mat))
-            lag_op = torch.diag(H_tilde) / (torch.diag(II_inv) + 1e-10)
+            lag_op = cp.diag(H_tilde) / (cp.diag(II_inv) + 1e-10)
             H_mat = H_tilde - II_inv * lag_op                   # Update H
             S_mat = H_mat + Phi_mat                             
-            S_mat = torch.clip((S_mat.T + S_mat) / 2, min=0)    # Update S
+            S_mat = ((S_mat.T + S_mat) / 2).clip(0)             # Update S
             Phi_mat += H_mat - S_mat                            # Update Phi
 
-        return torch.triu(S_mat)
+        return sp.triu(sp.coo_matrix(cp.asnumpy(S_mat)))
 
     def forward(self):
         r"""
@@ -282,13 +268,16 @@ class CoRML(GeneralRecommender):
         r"""
         Recommend items for the input users
         """
-        R_mat = self.inter_mat.index_select(dim=0, index=interaction[self.USER_ID]).to_dense()
+        user = cp.array(interaction[self.USER_ID].cpu().numpy())
+        R_mat = self.inter_mat[user, :].toarray()
 
-        Y_mat = R_mat * self.DI(-1) @ self.V_mat @ self.V_mat.T * self.di_sqr
+        Y_mat = R_mat * \
+            self.DI(-1) @ self.V_mat @ self.V_mat.T * self.di_sqr
         Y_mat = ((1 / self.lambda_) - 1) * \
-            torch.clip(Y_mat - R_mat * torch.square(self.V_mat).sum(dim=1).reshape(1, -1), min=0)
+            (Y_mat - R_mat * cp.square(self.V_mat).sum(axis=1).reshape(1, -1)).clip(0)
 
-        R_mat = R_mat * self.DI(-self.norm_di)
-        Y_mat += ((self.H_mat @ R_mat.T).T + R_mat @ self.H_mat) * self.DI(self.norm_di)
+        R_mat = R_mat @ diags(self.DI(-self.norm_di).flatten())
+        Y_mat += (R_mat @ self.H_mat + R_mat @ self.H_mat.T) @ \
+            diags(self.DI(self.norm_di).flatten())
 
-        return Y_mat
+        return torch.from_numpy(cp.asnumpy(Y_mat.flatten()))
