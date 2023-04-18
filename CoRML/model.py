@@ -132,8 +132,8 @@ class CoRML(GeneralRecommender):
 
         self.lambda_ = config["lambda"]                     # Weights for H and G in preference scores
         self.rho = config["dual_step_length"]               # Dual step length of ADMM
-        self.theta = config["l2_regularization"]            # L2-regularization for learning weight matrix G
-        self.norm_di = 2 * config["item_degree_norm"]       # Item degree norm for learning weight matrix G
+        self.theta = config["l2_regularization"]            # L2-regularization for learning weight matrix H
+        self.norm_di = 2 * config["item_degree_norm"]       # Item degree norm for learning weight matrix H
         self.eps = np.power(10, config["global_scaling"])   # Global scaling in approximated ranking weights (in logarithm scale)
 
         self.sparse_approx = config["sparse_approx"]        # Sparse approximation to reduce storage size of H
