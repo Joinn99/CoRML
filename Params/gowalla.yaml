@@ -1,0 +1,10 @@
+# Gowalla
+dataset: gowalla
+
+lambda: 0.8
+dual_step_length: 5e3
+l2_regularization: 1.0
+global_scaling: 0.0
+user_scaling: 0.0
+
+partition_ratio: 0.35

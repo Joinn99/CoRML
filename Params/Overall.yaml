@@ -1,0 +1,48 @@
+# General Parameters
+seed: 2026  #Choose in [2022,2024,2026,2028,2030]
+reproducibility: True
+
+# Training Parameters
+train_neg_sample_args:
+  sample_num: 1
+epochs: 1
+train_batch_size: 524288
+
+# Evaluation Parameters
+eval_args:
+  split: {'RS':[0.6, 0.2, 0.2]}
+  order: RO
+  group_by: user
+  mode: full
+eval_batch_size: 1048576
+eval_step: 0
+stopping_step: 1
+valid_metric: NDCG@20
+topk: [5, 10, 20]
+metrics: ['NDCG', 'MRR'] 
+metric_decimal_place: 6
+
+# Dataset Default Parameters
+data_path: ./Data/
+load_col:
+    inter: [user_id, item_id]
+    user: [user_id]
+    item: [item_id]
+
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+filter_inter_by_user_or_item: False
+
+# Model Default Parameters
+model: CoRML
+partition_ratio: 1.0        # Maximum size ratio of item partition (1.0 means no partitioning)
+sparse_approx: True         # Sparse approximation to reduce storage size of H to compare with MF-based models
+eigenvectors: 256           # Number of eigenvectors used in SVD
+admm_iter: 50               # Number of iterations for ADMM
+
+lambda: 0.75                # Weights for H and G in preference scores
+dual_step_length: 5e3       # Dual step length of ADMM
+l2_regularization: 1.0      # L2-regularization for learning weight matrix G
+item_degree_norm: 0.1       # Item degree norm for learning weight matrix G
+global_scaling: 0.0         # Global scaling in approximated ranking weights (in logarithm scale)
+user_scaling: 0.0           # User degree scaling in approximated ranking weights

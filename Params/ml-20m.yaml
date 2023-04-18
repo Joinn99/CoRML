@@ -1,0 +1,10 @@
+# ML-20M
+dataset: ml-20m
+
+lambda: 0.8
+dual_step_length: 10.0
+l2_regularization: 0.1
+global_scaling: 0.0
+user_scaling: 0.0
+
+partition_ratio: 1.0

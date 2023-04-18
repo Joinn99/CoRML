@@ -1,0 +1,10 @@
+# Yelp2018
+dataset: yelp2018
+
+lambda: 0.8
+dual_step_length: 5e3
+l2_regularization: 1.0
+global_scaling: -1.0
+user_scaling: 0.5
+
+partition_ratio: 0.3
