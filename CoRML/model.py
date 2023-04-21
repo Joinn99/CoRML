@@ -246,17 +246,17 @@ class CoRML(GeneralRecommender):
         del II_mat
 
         H_aux = II_inv @ H_aux
-        Phi_mat = torch.zeros_like(H_aux, device=self.device)
+        Gamma_mat = torch.zeros_like(H_aux, device=self.device)
         S_mat = torch.zeros_like(H_aux, device=self.device)
 
         for _ in range(self.admm_iter):
             # ADMM Iteration
-            H_tilde = H_aux + II_inv @ (self.rho * (S_mat - Phi_mat))
+            H_tilde = H_aux + II_inv @ (self.rho * (S_mat - Gamma_mat))
             lag_op = torch.diag(H_tilde) / (torch.diag(II_inv) + 1e-10)
             H_mat = H_tilde - II_inv * lag_op                   # Update H
-            S_mat = H_mat + Phi_mat                             
+            S_mat = H_mat + Gamma_mat                             
             S_mat = torch.clip((S_mat.T + S_mat) / 2, min=0)    # Update S
-            Phi_mat += H_mat - S_mat                            # Update Phi
+            Gamma_mat += H_mat - S_mat                          # Update Phi
 
         return torch.triu(S_mat)
 
