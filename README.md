@@ -1,4 +1,5 @@
 # CoRML
+[![DOI](https://img.shields.io/badge/DOI-10.1145%2F3539618.3591649-ff69b4)](https://doi.org/10.1145/3539618.3591649)
 [![RecBole](https://img.shields.io/badge/RecBole-1.1.1-orange)](https://recbole.io/)
 [![arXiv](https://img.shields.io/badge/arXiv-2304.07971-red)](https://arxiv.org/abs/2304.07971) 
 [![License](https://img.shields.io/github/license/Joinn99/CoRML)](https://github.com/Joinn99/CoRML/blob/torch/LICENSE.md)
@@ -79,18 +80,20 @@ If you wish, please cite the following paper:
 
 ```bibtex
 
-@InProceedings{CoRML,
-  author    = {{Wei}, Tianjun and {Ma}, Jianghong and {Chow}, Tommy W.~S.},
-  booktitle = {Proceedings of the 46th International ACM SIGIR Conference on Research and Development in Information Retrieval},
-  title     = {Collaborative Residual Metric Learning},
-  year      = {2023},
-  address   = {New York, NY, USA},
+@inproceedings{CoRML,
+  author = {{Wei}, Tianjun and {Ma}, Jianghong and {Chow}, Tommy W.~S.},
+  title = {Collaborative Residual Metric Learning},
+  year = {2023},
+  isbn = {9781450394086},
   publisher = {Association for Computing Machinery},
-  series    = {SIGIR '23},
-  doi       = {10.1145/3539618.3591649},
-  location  = {Taipei, Taiwan},
-  numpages  = {10},
-  url       = {https://doi.org/10.1145/3539618.3591649},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3539618.3591649},
+  doi = {10.1145/3539618.3591649},
+  booktitle = {Proceedings of the 46th International ACM SIGIR Conference on Research and Development in Information Retrieval},
+  pages = {1107–1116},
+  numpages = {10},
+  location = {Taipei, Taiwan},
+  series = {SIGIR '23}
 }
 
 @InProceedings{FPSR,
