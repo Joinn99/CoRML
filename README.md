@@ -7,7 +7,7 @@
 [**PyTorch version**](https://github.com/Joinn99/CoRML/tree/torch) (Default) | **CuPy version**
 
 This is the official implementation of our *The 46th International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR 2023)* paper:
-> Tianjun Wei, Jianghong Ma, Tommy W.S. Chow. Collaborative Residual Metric Learning. [[arXiv](https://arxiv.org/abs/2304.07971)]
+> Tianjun Wei, Jianghong Ma, Tommy W.S. Chow. Collaborative Residual Metric Learning. [[arXiv](https://arxiv.org/abs/2304.07971)] [[Paper](https://doi.org/10.1145/3539618.3591649)]
 
 <p align="center" width="100%">
     <kbd><img width="100%" src="https://raw.githubusercontent.com/Joinn99/RepositoryResource/master/CoRML.gif"> </kbd>
